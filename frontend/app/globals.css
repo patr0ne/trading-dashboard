@@ -40,6 +40,17 @@ body {
   font-weight: 600;
 }
 
+.hero-kicker-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.kicker-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .hero-title {
   margin: 0;
   font-size: clamp(2rem, 4.3vw, 3.6rem);
@@ -357,6 +368,7 @@ body {
 .status {
   display: inline-flex;
   align-items: center;
+  gap: 0.32rem;
   border-radius: 999px;
   font-size: 0.73rem;
   padding: 0.28rem 0.62rem;
@@ -365,13 +377,10 @@ body {
   color: #475569;
 }
 
-.status::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  margin-right: 0.38rem;
-  background: currentColor;
+.status-icon {
+  width: 0.78rem;
+  height: 0.78rem;
+  flex-shrink: 0;
 }
 
 .status-connecting {
@@ -531,8 +540,17 @@ body {
 }
 
 .chart-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   color: #334155;
   font-size: 0.82rem;
+}
+
+.chart-label-icon {
+  width: 0.78rem;
+  height: 0.78rem;
+  flex-shrink: 0;
 }
 
 .chart-select {

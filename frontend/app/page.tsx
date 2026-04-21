@@ -2,6 +2,19 @@
 
 import MarketCandlestickChart from "./components/MarketCandlestickChart";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CandlesIcon,
+  DashboardLogoIcon,
+  MoonIcon,
+  OrderbookDepthIcon,
+  PairIcon,
+  PulseIcon,
+  ScaleIcon,
+  SunIcon,
+  TickerStackIcon,
+  TimeframeIcon,
+  TradeFlowIcon,
+} from "./components/icons/DashboardIcons";
 
 type StreamStatus = "connecting" | "connected" | "disconnected";
 type StreamName = "tickers" | "trades" | "klines" | "orderbooks";
@@ -73,106 +86,6 @@ const ORDERBOOK_ROWS_LIMIT = 10;
 const ORDERBOOK_RATIO_LEVELS = 20;
 const TIMEFRAME_OPTIONS = ["1m", "5m", "15m", "1h"] as const;
 const PRICE_SCALE_OPTIONS = ["linear", "log"] as const;
-
-type IconProps = { className?: string };
-
-function PulseIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M3 12h4l2.4-4.5L13 17l2.2-5H21"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function ActivityIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M4 12h3l2-4 4 8 2-4h5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function LayersIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="m12 4 8 4.5-8 4.5-8-4.5L12 4Zm8 8-8 4.5L4 12m16 4-8 4.5L4 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CandlesIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 5v14M7 9h3v6H7M14 3v18M14 7h3v10h-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BookIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Zm0 0A2.5 2.5 0 0 1 6.5 8H20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function SunIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function MoonIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M20 14.2A8.2 8.2 0 1 1 9.8 4a7 7 0 1 0 10.2 10.2Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function sortBySymbol<T extends SourceSymbol>(items: T[]): T[] {
   return [...items].sort((left, right) => {
@@ -778,7 +691,10 @@ export default function HomePage() {
     <main className="dashboard-shell">
       <header className="hero">
         <div>
-          <p className="hero-kicker">Live Market Console</p>
+          <p className="hero-kicker hero-kicker-with-icon">
+            <DashboardLogoIcon className="kicker-icon" />
+            Live Market Console
+          </p>
           <h1 className="hero-title">Realtime Trading Dashboard</h1>
           <p className="hero-subtitle">
             Multi-stream observability for tickers, trades, klines and orderbook depth. Designed for quick anomaly detection and pair inspection.
@@ -825,14 +741,26 @@ export default function HomePage() {
       <section className="section-block">
         <div className="section-heading">
           <h2 className="title-with-icon">
-            <LayersIcon className="title-icon" />
+            <TickerStackIcon className="title-icon" />
             Ticker Snapshot
           </h2>
           <div className="status-group">
-            <span className={`status status-${streamStatus.tickers}`}>tickers: {streamStatus.tickers}</span>
-            <span className={`status status-${streamStatus.trades}`}>trades: {streamStatus.trades}</span>
-            <span className={`status status-${streamStatus.klines}`}>klines: {streamStatus.klines}</span>
-            <span className={`status status-${streamStatus.orderbooks}`}>orderbooks: {streamStatus.orderbooks}</span>
+            <span className={`status status-${streamStatus.tickers}`}>
+              <TickerStackIcon className="status-icon" />
+              tickers: {streamStatus.tickers}
+            </span>
+            <span className={`status status-${streamStatus.trades}`}>
+              <TradeFlowIcon className="status-icon" />
+              trades: {streamStatus.trades}
+            </span>
+            <span className={`status status-${streamStatus.klines}`}>
+              <CandlesIcon className="status-icon" />
+              klines: {streamStatus.klines}
+            </span>
+            <span className={`status status-${streamStatus.orderbooks}`}>
+              <OrderbookDepthIcon className="status-icon" />
+              orderbooks: {streamStatus.orderbooks}
+            </span>
           </div>
         </div>
         <div className="cards">
@@ -872,7 +800,7 @@ export default function HomePage() {
       <section className="section-block">
         <div className="section-heading">
           <h2 className="title-with-icon">
-            <ActivityIcon className="title-icon" />
+            <TradeFlowIcon className="title-icon" />
             Latest Trade Snapshots
           </h2>
         </div>
@@ -961,6 +889,7 @@ export default function HomePage() {
         </div>
         <div className="chart-controls">
           <label className="chart-label" htmlFor="timeframe-selector">
+            <TimeframeIcon className="chart-label-icon" />
             Timeframe
           </label>
           <select
@@ -977,6 +906,7 @@ export default function HomePage() {
           </select>
 
           <label className="chart-label" htmlFor="kline-selector">
+            <PairIcon className="chart-label-icon" />
             Pair
           </label>
           <select
@@ -994,6 +924,7 @@ export default function HomePage() {
           </select>
 
           <label className="chart-label" htmlFor="price-scale-selector">
+            <ScaleIcon className="chart-label-icon" />
             Price scale
           </label>
           <select
@@ -1044,10 +975,13 @@ export default function HomePage() {
             <aside className="orderbook-panel">
               <div className="orderbook-header">
                 <h3>
-                  <BookIcon className="title-icon orderbook-title-icon" />
+                  <OrderbookDepthIcon className="title-icon orderbook-title-icon" />
                   Order Book ({selectedPair.symbol} | {selectedPair.source.toUpperCase()})
                 </h3>
-                <span className={`status status-${streamStatus.orderbooks}`}>{streamStatus.orderbooks}</span>
+                <span className={`status status-${streamStatus.orderbooks}`}>
+                  <OrderbookDepthIcon className="status-icon" />
+                  {streamStatus.orderbooks}
+                </span>
               </div>
               {selectedOrderbook === null ? (
                 <p className="chart-empty">Order book snapshot is not available yet.</p>
