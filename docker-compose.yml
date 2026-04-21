@@ -1,6 +1,8 @@
 services:
   ingester:
-    build: ./ingester
+    build:
+      context: ./ingester
+      dockerfile: Dockerfile.local
     env_file: .env
     restart: unless-stopped
     ports:
@@ -9,7 +11,9 @@ services:
       - redis
 
   api:
-    build: ./api_server
+    build:
+      context: ./api_server
+      dockerfile: Dockerfile.local
     env_file: .env
     environment:
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3110},http://localhost:3000
@@ -20,7 +24,9 @@ services:
       - redis
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.local
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PUBLIC_PORT:-8000}
       NEXT_PUBLIC_WS_TICKERS_URL: ws://localhost:${API_PUBLIC_PORT:-8000}/ws/tickers

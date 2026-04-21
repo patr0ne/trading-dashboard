@@ -1,0 +1,21 @@
+services:
+  ingester:
+    build:
+      context: ./ingester
+      dockerfile: Dockerfile.prod
+
+  api:
+    build:
+      context: ./api_server
+      dockerfile: Dockerfile.prod
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_WS_TICKERS_URL: ${NEXT_PUBLIC_WS_TICKERS_URL:-ws://localhost:8000/ws/tickers}
+        NEXT_PUBLIC_WS_TRADES_URL: ${NEXT_PUBLIC_WS_TRADES_URL:-ws://localhost:8000/ws/trades}
+        NEXT_PUBLIC_WS_KLINES_URL: ${NEXT_PUBLIC_WS_KLINES_URL:-ws://localhost:8000/ws/klines}
+        NEXT_PUBLIC_WS_ORDERBOOKS_URL: ${NEXT_PUBLIC_WS_ORDERBOOKS_URL:-ws://localhost:8000/ws/orderbooks}

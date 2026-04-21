@@ -20,8 +20,10 @@ MVP phase 1 (`ticker/trade/kline` flow) is implemented:
    - copy `.env.example` -> `.env`
    - optional: change external ports in `.env` (`FRONTEND_PORT`, `API_PUBLIC_PORT`, `GRAFANA_PORT`, `PROMETHEUS_PORT`, `REDIS_PUBLIC_PORT`)
    - optional: change Grafana admin credentials in `.env` (`GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`)
-2. Start stack:
+2. Start local stack:
    - `make up`
+3. (Optional) Start production-oriented stack:
+   - `make up-prod`
 3. Open:
    - frontend: `http://localhost:3110`
    - grafana: `http://localhost:3001` (admin/admin)
@@ -59,8 +61,13 @@ Recommended: keep this environment isolated and do not reuse it across other por
 ```bash
 make init
 make up
+make up-prod
 make down
+make down-prod
 ```
+
+The default `docker-compose.yml` uses local images (`Dockerfile.local`).
+Production-oriented build overrides are in `docker-compose.prod.yml` (`Dockerfile.prod`).
 
 Default external ports:
 - frontend: `FRONTEND_PORT=3110`
@@ -96,3 +103,12 @@ Default Grafana credentials:
   - Prometheus active targets: `api_server` and `ingester` are `up`
   - Grafana health: `GET http://localhost:3001/api/health` -> `200`
   - Grafana provisioning: Prometheus datasource and dashboard are available
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE`.
+
+## Market data usage notice
+
+This project consumes public market data from Binance and Bybit APIs.
+Before running a public deployment, verify the current exchange Terms of Service and market-data redistribution policies for your specific use case/jurisdiction.
