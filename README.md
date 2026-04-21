@@ -10,14 +10,9 @@ MVP real-time crypto market dashboard.
   </a>
 </p>
 
-<p align="center">
-  <a href="https://gifyu.com/image/bqaCg">
-    <img src="https://s13.gifyu.com/images/bqaCg.png" alt="" width="455" />
-  </a>
-  <a href="https://gifyu.com/image/bqaCc">
-    <img src="https://s13.gifyu.com/images/bqaCc.png" alt="" width="455" />
-  </a>
-</p>
+| | |
+|---|---|
+| <a href="https://gifyu.com/image/bqaCg"><img src="https://s13.gifyu.com/images/bqaCg.png" alt="" width="100%" /></a> | <a href="https://gifyu.com/image/bqaCc"><img src="https://s13.gifyu.com/images/bqaCc.png" alt="" width="100%" /></a> |
 
 ## Planned modules
 
