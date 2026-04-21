@@ -30,7 +30,7 @@ ORDERBOOK_KEY_PREFIX = os.getenv("ORDERBOOK_KEY_PREFIX", "orderbook")
 KLINE_CHANNEL = os.getenv("KLINE_CHANNEL", "kline_updates")
 KLINE_KEY_PREFIX = os.getenv("KLINE_KEY_PREFIX", "kline")
 KLINE_HISTORY_KEY_PREFIX = os.getenv("KLINE_HISTORY_KEY_PREFIX", "kline_history")
-KLINE_HISTORY_LIMIT = int(os.getenv("KLINE_HISTORY_LIMIT", "240"))
+KLINE_HISTORY_LIMIT = int(os.getenv("KLINE_HISTORY_LIMIT", "1000"))
 ORDERBOOK_LEVELS = int(os.getenv("ORDERBOOK_LEVELS", "20"))
 BYBIT_ORDERBOOK_TOPIC_DEPTH = os.getenv("BYBIT_ORDERBOOK_TOPIC_DEPTH", "50")
 BINANCE_ORDERBOOK_STREAM_LEVELS = os.getenv("BINANCE_ORDERBOOK_STREAM_LEVELS", "20")
@@ -107,6 +107,13 @@ def _parse_updated_at_ms(value: Any) -> str:
         return str(int(value))
     except (TypeError, ValueError):
         return str(_current_ms())
+
+
+def _normalize_percent_to_ratio(value: Any) -> str:
+    try:
+        return str(float(value) / 100)
+    except (TypeError, ValueError):
+        return "0"
 
 
 def _normalize_trade_side(value: Any) -> str | None:
@@ -312,7 +319,7 @@ def _parse_binance_ticker_message(payload: dict[str, Any]) -> dict[str, str] | N
     return {
         "symbol": symbol.upper(),
         "price": str(last_price),
-        "change24h": str(data.get("P", "0")),
+        "change24h": _normalize_percent_to_ratio(data.get("P", "0")),
         "volume24h": str(data.get("v", "0")),
         "source": "binance",
         "updated_at_ms": _parse_updated_at_ms(data.get("E", _current_ms())),
@@ -456,6 +463,20 @@ async def _publish_kline(redis_client: redis.Redis, kline: dict[str, str]) -> No
     await _publish_event(redis_client, channel=KLINE_CHANNEL, key=_kline_key(kline), payload=kline)
     history_key = _kline_history_key(kline)
     payload_json = json.dumps(kline)
+    latest_raw = await redis_client.lindex(history_key, 0)
+    if latest_raw:
+        try:
+            latest_payload = json.loads(latest_raw)
+        except json.JSONDecodeError:
+            latest_payload = None
+
+        if isinstance(latest_payload, dict):
+            latest_open_time = latest_payload.get("open_time_ms")
+            current_open_time = kline.get("open_time_ms")
+            if latest_open_time is not None and current_open_time is not None and str(latest_open_time) == str(current_open_time):
+                await redis_client.lset(history_key, 0, payload_json)
+                return
+
     await redis_client.lpush(history_key, payload_json)
     await redis_client.ltrim(history_key, 0, max(KLINE_HISTORY_LIMIT - 1, 0))
 

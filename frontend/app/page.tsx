@@ -1,7 +1,7 @@
 "use client";
 
 import MarketCandlestickChart from "./components/MarketCandlestickChart";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type StreamStatus = "connecting" | "connected" | "disconnected";
 type StreamName = "tickers" | "trades" | "klines" | "orderbooks";
@@ -67,7 +67,7 @@ const WS_KLINES_URL = process.env.NEXT_PUBLIC_WS_KLINES_URL ?? "ws://localhost:8
 const WS_ORDERBOOKS_URL = process.env.NEXT_PUBLIC_WS_ORDERBOOKS_URL ?? "ws://localhost:8000/ws/orderbooks";
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 10000;
-const KLINE_HISTORY_LIMIT = 120;
+const KLINE_HISTORY_LIMIT = 300;
 const KLINE_HISTORY_POLL_INTERVAL_MS = 1000;
 const ORDERBOOK_ROWS_LIMIT = 10;
 const ORDERBOOK_RATIO_LEVELS = 20;
@@ -214,6 +214,17 @@ function klineTimeMs(kline: Kline): number {
     return updatedAt;
   }
   return 0;
+}
+
+function mergeAndSortKlines(existing: Kline[], incoming: Kline[]): Kline[] {
+  const byOpenTime = new Map<number, Kline>();
+  for (const kline of existing) {
+    byOpenTime.set(klineTimeMs(kline), kline);
+  }
+  for (const kline of incoming) {
+    byOpenTime.set(klineTimeMs(kline), kline);
+  }
+  return Array.from(byOpenTime.values()).sort((left, right) => klineTimeMs(left) - klineTimeMs(right));
 }
 
 function isTickerPayload(payload: unknown): payload is Ticker {
@@ -401,7 +412,9 @@ export default function HomePage() {
   const [selectedPairKey, setSelectedPairKey] = useState<string>("");
   const [klineHistory, setKlineHistory] = useState<Kline[]>([]);
   const [isKlineHistoryLoading, setIsKlineHistoryLoading] = useState(false);
+  const [isLoadingOlderKlineHistory, setIsLoadingOlderKlineHistory] = useState(false);
   const [klineHistoryError, setKlineHistoryError] = useState<string | null>(null);
+  const [hasMoreKlineHistory, setHasMoreKlineHistory] = useState(true);
   const [streamStatus, setStreamStatus] = useState<Record<StreamName, StreamStatus>>({
     tickers: "connecting",
     trades: "connecting",
@@ -578,17 +591,62 @@ export default function HomePage() {
     };
   }, [selectedPair, selectedTimeframe]);
 
+  const loadOlderKlineHistory = useCallback(async () => {
+    if (!selectedHistoryParams || isLoadingOlderKlineHistory || !hasMoreKlineHistory || klineHistory.length === 0) {
+      return;
+    }
+
+    const oldestOpenTimeMs = klineTimeMs(klineHistory[0]);
+    if (!Number.isFinite(oldestOpenTimeMs) || oldestOpenTimeMs <= 0) {
+      return;
+    }
+
+    const { source, symbol, interval } = selectedHistoryParams;
+    setIsLoadingOlderKlineHistory(true);
+    try {
+      const params = new URLSearchParams({
+        source,
+        symbol,
+        interval,
+        limit: String(KLINE_HISTORY_LIMIT),
+        before_open_time_ms: String(oldestOpenTimeMs),
+      });
+      const response = await fetch(`${KLINE_HISTORY_API_URL}?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as unknown;
+      if (!Array.isArray(payload)) {
+        throw new Error("Invalid history payload");
+      }
+      const items = payload.filter(isKlinePayload).sort((left, right) => klineTimeMs(left) - klineTimeMs(right));
+      setKlineHistory((previous) => mergeAndSortKlines(previous, items));
+      if (items.length < KLINE_HISTORY_LIMIT) {
+        setHasMoreKlineHistory(false);
+      }
+      setKlineHistoryError(null);
+    } catch (error) {
+      setKlineHistoryError(error instanceof Error ? error.message : "Failed to load older kline history");
+    } finally {
+      setIsLoadingOlderKlineHistory(false);
+    }
+  }, [hasMoreKlineHistory, isLoadingOlderKlineHistory, klineHistory, selectedHistoryParams]);
+
   useEffect(() => {
     if (!selectedHistoryParams) {
       setKlineHistory([]);
       setKlineHistoryError(null);
       setIsKlineHistoryLoading(false);
+      setIsLoadingOlderKlineHistory(false);
+      setHasMoreKlineHistory(false);
       return;
     }
 
     const { source, symbol, interval } = selectedHistoryParams;
     let cancelled = false;
     let firstLoad = true;
+    setHasMoreKlineHistory(true);
+    setIsLoadingOlderKlineHistory(false);
 
     async function loadHistory() {
       try {
@@ -611,8 +669,11 @@ export default function HomePage() {
         }
         const items = payload.filter(isKlinePayload).sort((left, right) => klineTimeMs(left) - klineTimeMs(right));
         if (!cancelled) {
-          setKlineHistory(items);
+          setKlineHistory((previous) => (firstLoad ? items : mergeAndSortKlines(previous, items)));
           setKlineHistoryError(null);
+          if (firstLoad) {
+            setHasMoreKlineHistory(items.length >= KLINE_HISTORY_LIMIT);
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -963,6 +1024,9 @@ export default function HomePage() {
                 klines={klineHistory}
                 loading={isKlineHistoryLoading}
                 error={klineHistoryError}
+                onNeedMoreHistory={loadOlderKlineHistory}
+                canLoadMoreHistory={hasMoreKlineHistory}
+                isLoadingMoreHistory={isLoadingOlderKlineHistory}
               />
               <div className="chart-meta">
                 <span>

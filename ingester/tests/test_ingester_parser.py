@@ -1,4 +1,6 @@
+import asyncio
 from importlib import util
+import json
 from pathlib import Path
 
 INGESTER_MAIN_PATH = Path(__file__).resolve().parents[1] / "main.py"
@@ -21,6 +23,7 @@ _trade_key = INGESTER_MODULE._trade_key
 _orderbook_key = INGESTER_MODULE._orderbook_key
 _kline_key = INGESTER_MODULE._kline_key
 _kline_history_key = INGESTER_MODULE._kline_history_key
+_publish_kline = INGESTER_MODULE._publish_kline
 
 
 def test_parse_bybit_ticker_message_returns_normalized_ticker() -> None:
@@ -67,7 +70,7 @@ def test_parse_binance_ticker_message_returns_normalized_ticker() -> None:
     assert result is not None
     assert result["symbol"] == "BTCUSDT"
     assert result["price"] == "70000.5"
-    assert result["change24h"] == "1.23"
+    assert result["change24h"] == "0.0123"
     assert result["volume24h"] == "42.5"
     assert result["source"] == "binance"
     assert result["updated_at_ms"] == "1712750000123"
@@ -280,3 +283,74 @@ def test_trade_and_kline_keys_include_source_symbol_interval() -> None:
     assert _orderbook_key(orderbook) == "orderbook:binance:BTCUSDT"
     assert _kline_key(kline) == "kline:bybit:ETHUSDT:1m"
     assert _kline_history_key(kline) == "kline_history:bybit:ETHUSDT:1m"
+
+
+def test_publish_kline_updates_latest_history_item_for_same_open_time() -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.history_by_key: dict[str, list[str]] = {}
+
+        async def hset(self, key: str, mapping: dict[str, str]) -> None:
+            return None
+
+        async def publish(self, channel: str, payload: str) -> None:
+            return None
+
+        async def lindex(self, key: str, index: int) -> str | None:
+            items = self.history_by_key.get(key, [])
+            if index < 0 or index >= len(items):
+                return None
+            return items[index]
+
+        async def lset(self, key: str, index: int, value: str) -> None:
+            self.history_by_key[key][index] = value
+
+        async def lpush(self, key: str, value: str) -> None:
+            self.history_by_key.setdefault(key, []).insert(0, value)
+
+        async def ltrim(self, key: str, start: int, stop: int) -> None:
+            items = self.history_by_key.get(key, [])
+            if stop < start:
+                self.history_by_key[key] = []
+                return
+            self.history_by_key[key] = items[start : stop + 1]
+
+    redis_client = FakeRedis()
+    history_key = "kline_history:binance:BTCUSDT:1m"
+    first = {
+        "source": "binance",
+        "symbol": "BTCUSDT",
+        "interval": "1m",
+        "open_time_ms": "1712751200000",
+        "updated_at_ms": "1712751201000",
+        "open": "70000",
+        "high": "70010",
+        "low": "69990",
+        "close": "70005",
+        "volume": "1.0",
+    }
+    same_candle_update = {
+        **first,
+        "updated_at_ms": "1712751202000",
+        "close": "70008",
+        "volume": "2.0",
+    }
+    next_candle = {
+        **first,
+        "open_time_ms": "1712751260000",
+        "updated_at_ms": "1712751260000",
+        "open": "70008",
+        "high": "70020",
+        "low": "70000",
+        "close": "70015",
+        "volume": "0.7",
+    }
+
+    asyncio.run(_publish_kline(redis_client, first))
+    asyncio.run(_publish_kline(redis_client, same_candle_update))
+    asyncio.run(_publish_kline(redis_client, next_candle))
+
+    stored = redis_client.history_by_key[history_key]
+    assert len(stored) == 2
+    assert json.loads(stored[0])["open_time_ms"] == "1712751260000"
+    assert json.loads(stored[1])["close"] == "70008"

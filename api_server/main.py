@@ -11,10 +11,13 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+import httpx
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 import redis.asyncio as redis
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+BYBIT_HTTP_URL = os.getenv("BYBIT_HTTP_URL", "https://api.bybit.com")
+BINANCE_HTTP_URL = os.getenv("BINANCE_HTTP_URL", "https://api.binance.com")
 SYMBOLS = [symbol.strip().upper() for symbol in os.getenv("SYMBOLS", "BTCUSDT,ETHUSDT").split(",") if symbol.strip()]
 SOURCES = [source.strip().lower() for source in os.getenv("SOURCES", "bybit,binance").split(",") if source.strip()]
 TICKER_CHANNEL = os.getenv("TICKER_CHANNEL", "ticker_updates")
@@ -31,6 +34,13 @@ DEFAULT_KLINE_INTERVAL = KLINE_INTERVALS[0] if KLINE_INTERVALS else "1m"
 KLINE_HISTORY_DEFAULT_LIMIT = int(os.getenv("KLINE_HISTORY_DEFAULT_LIMIT", "120"))
 CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if origin.strip()]
 HEARTBEAT_SECONDS = float(os.getenv("WS_HEARTBEAT_SECONDS", "15"))
+
+CANONICAL_TO_BYBIT_INTERVAL: dict[str, str] = {
+    "1m": "1",
+    "5m": "5",
+    "15m": "15",
+    "1h": "60",
+}
 
 HTTP_REQUESTS_TOTAL = Counter(
     "trading_api_http_requests_total",
@@ -167,9 +177,10 @@ async def _fetch_kline_history(
     symbol: str,
     interval: str,
     limit: int,
+    before_open_time_ms: int | None = None,
 ) -> list[dict[str, str]]:
     history_key = _redis_key(KLINE_HISTORY_KEY_PREFIX, source, symbol, interval)
-    raw_items = await redis_client.lrange(history_key, 0, max((limit * 4) - 1, limit - 1))
+    raw_items = await redis_client.lrange(history_key, 0, -1)
 
     klines: list[dict[str, str]] = []
     seen_open_time: set[int] = set()
@@ -182,6 +193,8 @@ async def _fetch_kline_history(
             continue
 
         open_time_ms = _extract_open_time_ms(payload)
+        if before_open_time_ms is not None and open_time_ms >= before_open_time_ms:
+            continue
         if open_time_ms in seen_open_time:
             continue
         seen_open_time.add(open_time_ms)
@@ -193,6 +206,140 @@ async def _fetch_kline_history(
 
     klines.reverse()
     return klines
+
+
+def _merge_kline_history_items(*collections: list[dict[str, str]]) -> list[dict[str, str]]:
+    by_open_time: dict[int, dict[str, str]] = {}
+    for items in collections:
+        for payload in items:
+            open_time_ms = _extract_open_time_ms(payload)
+            by_open_time[open_time_ms] = payload
+    return sorted(by_open_time.values(), key=_extract_open_time_ms)
+
+
+async def _fetch_remote_binance_kline_history(
+    *,
+    symbol: str,
+    interval: str,
+    limit: int,
+    before_open_time_ms: int,
+) -> list[dict[str, str]]:
+    timeout = httpx.Timeout(10.0, connect=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.get(
+            f"{BINANCE_HTTP_URL}/api/v3/klines",
+            params={
+                "symbol": symbol,
+                "interval": interval,
+                "limit": str(limit),
+                "endTime": str(max(before_open_time_ms - 1, 0)),
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+    if not isinstance(payload, list):
+        return []
+
+    klines: list[dict[str, str]] = []
+    for item in payload:
+        if not isinstance(item, list) or len(item) < 7:
+            continue
+        open_time_ms, open_price, high_price, low_price, close_price, volume, close_time_ms = item[:7]
+        klines.append(
+            {
+                "symbol": symbol,
+                "interval": interval,
+                "open": str(open_price),
+                "high": str(high_price),
+                "low": str(low_price),
+                "close": str(close_price),
+                "volume": str(volume),
+                "source": "binance",
+                "open_time_ms": str(open_time_ms),
+                "updated_at_ms": str(close_time_ms),
+            }
+        )
+
+    return sorted(klines, key=_extract_open_time_ms)
+
+
+async def _fetch_remote_bybit_kline_history(
+    *,
+    symbol: str,
+    interval: str,
+    limit: int,
+    before_open_time_ms: int,
+) -> list[dict[str, str]]:
+    bybit_interval = CANONICAL_TO_BYBIT_INTERVAL.get(interval)
+    if bybit_interval is None:
+        return []
+
+    timeout = httpx.Timeout(10.0, connect=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.get(
+            f"{BYBIT_HTTP_URL}/v5/market/kline",
+            params={
+                "category": "spot",
+                "symbol": symbol,
+                "interval": bybit_interval,
+                "limit": str(limit),
+                "end": str(max(before_open_time_ms - 1, 0)),
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+    data = payload.get("result", {}).get("list", [])
+    if not isinstance(data, list):
+        return []
+
+    klines: list[dict[str, str]] = []
+    for item in data:
+        if not isinstance(item, list) or len(item) < 6:
+            continue
+        open_time_ms, open_price, high_price, low_price, close_price, volume = item[:6]
+        klines.append(
+            {
+                "symbol": symbol,
+                "interval": interval,
+                "open": str(open_price),
+                "high": str(high_price),
+                "low": str(low_price),
+                "close": str(close_price),
+                "volume": str(volume),
+                "source": "bybit",
+                "open_time_ms": str(open_time_ms),
+                "updated_at_ms": str(open_time_ms),
+            }
+        )
+
+    return sorted(klines, key=_extract_open_time_ms)
+
+
+async def _fetch_remote_kline_history(
+    *,
+    source: str,
+    symbol: str,
+    interval: str,
+    limit: int,
+    before_open_time_ms: int,
+) -> list[dict[str, str]]:
+    if limit <= 0 or before_open_time_ms <= 0:
+        return []
+    if source == "binance":
+        return await _fetch_remote_binance_kline_history(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            before_open_time_ms=before_open_time_ms,
+        )
+    if source == "bybit":
+        return await _fetch_remote_bybit_kline_history(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            before_open_time_ms=before_open_time_ms,
+        )
+    return []
 
 
 def _decode_pubsub_data(data: Any) -> str:
@@ -360,6 +507,7 @@ async def get_kline_history(
     symbol: str = Query(..., min_length=1),
     interval: str = Query(DEFAULT_KLINE_INTERVAL, min_length=1),
     limit: int = Query(KLINE_HISTORY_DEFAULT_LIMIT, ge=1, le=500),
+    before_open_time_ms: int | None = Query(default=None, ge=0),
 ) -> list[dict[str, str]]:
     normalized_source = source.strip().lower()
     normalized_symbol = symbol.strip().upper()
@@ -373,13 +521,26 @@ async def get_kline_history(
         raise HTTPException(status_code=400, detail=f"Unknown interval: {normalized_interval}")
 
     redis_client: redis.Redis = app.state.redis
-    return await _fetch_kline_history(
+    redis_history = await _fetch_kline_history(
         redis_client,
         source=normalized_source,
         symbol=normalized_symbol,
         interval=normalized_interval,
         limit=limit,
+        before_open_time_ms=before_open_time_ms,
     )
+    if before_open_time_ms is None or len(redis_history) >= limit:
+        return redis_history
+
+    missing = limit - len(redis_history)
+    remote_history = await _fetch_remote_kline_history(
+        source=normalized_source,
+        symbol=normalized_symbol,
+        interval=normalized_interval,
+        limit=missing,
+        before_open_time_ms=before_open_time_ms,
+    )
+    return _merge_kline_history_items(redis_history, remote_history)[:limit]
 
 
 @app.websocket("/ws/tickers")

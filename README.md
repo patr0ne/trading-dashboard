@@ -2,6 +2,23 @@
 
 MVP real-time crypto market dashboard.
 
+## Screenshots
+
+<p align="center">
+  <a href="https://gifyu.com/image/bqaCi">
+    <img src="https://s13.gifyu.com/images/bqaCi.gif" alt="" width="920" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://gifyu.com/image/bqaCg">
+    <img src="https://s13.gifyu.com/images/bqaCg.png" alt="" width="455" />
+  </a>
+  <a href="https://gifyu.com/image/bqaCc">
+    <img src="https://s13.gifyu.com/images/bqaCc.png" alt="" width="455" />
+  </a>
+</p>
+
 ## Planned modules
 
 - `ingester` (Python): exchange websocket ingestion and normalization

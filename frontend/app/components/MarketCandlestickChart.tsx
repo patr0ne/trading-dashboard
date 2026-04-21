@@ -32,6 +32,9 @@ type Props = {
   klines: Kline[];
   loading: boolean;
   error: string | null;
+  onNeedMoreHistory?: () => void;
+  canLoadMoreHistory?: boolean;
+  isLoadingMoreHistory?: boolean;
 };
 
 type CandleDatum = {
@@ -117,7 +120,17 @@ function formatTimeLabel(time: Time): string {
   return timestamp.toLocaleDateString();
 }
 
-export default function MarketCandlestickChart({ chartKey, priceScaleMode, uiTheme, klines, loading, error }: Props) {
+export default function MarketCandlestickChart({
+  chartKey,
+  priceScaleMode,
+  uiTheme,
+  klines,
+  loading,
+  error,
+  onNeedMoreHistory,
+  canLoadMoreHistory = false,
+  isLoadingMoreHistory = false,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -126,10 +139,27 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, uiThe
   const currentChartKeyRef = useRef(chartKey);
   const viewportByKeyRef = useRef<Record<string, LogicalRange | null | undefined>>({});
   const autoFittedKeyRef = useRef<Record<string, boolean>>({});
+  const candleCountRef = useRef(0);
+  const onNeedMoreHistoryRef = useRef<Props["onNeedMoreHistory"]>(onNeedMoreHistory);
+  const canLoadMoreHistoryRef = useRef(canLoadMoreHistory);
+  const isLoadingMoreHistoryRef = useRef(isLoadingMoreHistory);
+  const lastMoreHistoryRequestMsRef = useRef(0);
   const [crosshairSnapshot, setCrosshairSnapshot] = useState<CrosshairSnapshot | null>(null);
   const isDarkTheme = uiTheme === "dark";
 
   const candleData = useMemo(() => normalizeKlines(klines), [klines]);
+  useEffect(() => {
+    candleCountRef.current = candleData.length;
+  }, [candleData.length]);
+  useEffect(() => {
+    onNeedMoreHistoryRef.current = onNeedMoreHistory;
+  }, [onNeedMoreHistory]);
+  useEffect(() => {
+    canLoadMoreHistoryRef.current = canLoadMoreHistory;
+  }, [canLoadMoreHistory]);
+  useEffect(() => {
+    isLoadingMoreHistoryRef.current = isLoadingMoreHistory;
+  }, [isLoadingMoreHistory]);
   const latestSnapshot = useMemo<CrosshairSnapshot | null>(() => {
     if (candleData.length === 0) {
       return null;
@@ -284,6 +314,29 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, uiThe
 
     const handleRangeChange = (range: LogicalRange | null) => {
       viewportByKeyRef.current[currentChartKeyRef.current] = range;
+      if (!range || !onNeedMoreHistoryRef.current || !canLoadMoreHistoryRef.current || isLoadingMoreHistoryRef.current) {
+        return;
+      }
+      if (!candleSeriesRef.current) {
+        return;
+      }
+
+      const barsInfo = candleSeriesRef.current.barsInLogicalRange(range);
+      if (!barsInfo) {
+        return;
+      }
+
+      const minBarsBeforeTrigger = Math.max(10, Math.floor(candleCountRef.current * 0.08));
+      if (barsInfo.barsBefore >= minBarsBeforeTrigger) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastMoreHistoryRequestMsRef.current < 800) {
+        return;
+      }
+      lastMoreHistoryRequestMsRef.current = now;
+      onNeedMoreHistoryRef.current();
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(handleRangeChange);
 
