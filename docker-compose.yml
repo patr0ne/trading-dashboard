@@ -12,7 +12,7 @@ services:
     build: ./api_server
     env_file: .env
     environment:
-      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3100},http://localhost:3000
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3110},http://localhost:3000
     restart: unless-stopped
     ports:
       - "${API_PUBLIC_PORT:-8000}:${API_PORT:-8000}"
@@ -21,7 +21,6 @@ services:
 
   frontend:
     build: ./frontend
-    env_file: .env
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PUBLIC_PORT:-8000}
       NEXT_PUBLIC_WS_TICKERS_URL: ws://localhost:${API_PUBLIC_PORT:-8000}/ws/tickers
@@ -30,7 +29,7 @@ services:
       NEXT_PUBLIC_WS_ORDERBOOKS_URL: ws://localhost:${API_PUBLIC_PORT:-8000}/ws/orderbooks
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-3100}:3000"
+      - "${FRONTEND_PORT:-3110}:3000"
     depends_on:
       - api
 

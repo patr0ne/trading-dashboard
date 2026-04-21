@@ -23,7 +23,7 @@ MVP phase 1 (`ticker/trade/kline` flow) is implemented:
 2. Start stack:
    - `make up`
 3. Open:
-   - frontend: `http://localhost:3100`
+   - frontend: `http://localhost:3110`
    - grafana: `http://localhost:3001` (admin/admin)
    - prometheus: `http://localhost:9090`
    - api health: `http://localhost:8000/health`
@@ -63,7 +63,7 @@ make down
 ```
 
 Default external ports:
-- frontend: `FRONTEND_PORT=3100`
+- frontend: `FRONTEND_PORT=3110`
 - api: `API_PUBLIC_PORT=8000`
 - grafana: `GRAFANA_PORT=3001`
 - prometheus: `PROMETHEUS_PORT=9090`
