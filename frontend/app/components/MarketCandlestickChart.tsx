@@ -28,6 +28,7 @@ type Kline = {
 type Props = {
   chartKey: string;
   priceScaleMode: "linear" | "log";
+  uiTheme: "light" | "dark";
   klines: Kline[];
   loading: boolean;
   error: string | null;
@@ -116,7 +117,7 @@ function formatTimeLabel(time: Time): string {
   return timestamp.toLocaleDateString();
 }
 
-export default function MarketCandlestickChart({ chartKey, priceScaleMode, klines, loading, error }: Props) {
+export default function MarketCandlestickChart({ chartKey, priceScaleMode, uiTheme, klines, loading, error }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -126,6 +127,7 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, kline
   const viewportByKeyRef = useRef<Record<string, LogicalRange | null | undefined>>({});
   const autoFittedKeyRef = useRef<Record<string, boolean>>({});
   const [crosshairSnapshot, setCrosshairSnapshot] = useState<CrosshairSnapshot | null>(null);
+  const isDarkTheme = uiTheme === "dark";
 
   const candleData = useMemo(() => normalizeKlines(klines), [klines]);
   const latestSnapshot = useMemo<CrosshairSnapshot | null>(() => {
@@ -166,12 +168,12 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, kline
       width: Math.max(container.clientWidth, 320),
       height: 340,
       layout: {
-        background: { color: "#0b1320" },
-        textColor: "#9bb0d2",
+        background: { color: "#ffffff" },
+        textColor: "#475569",
       },
       grid: {
-        vertLines: { color: "rgba(107, 131, 170, 0.16)" },
-        horzLines: { color: "rgba(107, 131, 170, 0.16)" },
+        vertLines: { color: "rgba(148, 163, 184, 0.18)" },
+        horzLines: { color: "rgba(148, 163, 184, 0.18)" },
       },
       handleScroll: {
         mouseWheel: true,
@@ -185,22 +187,22 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, kline
         pinch: true,
       },
       rightPriceScale: {
-        borderColor: "rgba(131, 157, 199, 0.45)",
+        borderColor: "rgba(148, 163, 184, 0.6)",
       },
       timeScale: {
-        borderColor: "rgba(131, 157, 199, 0.45)",
+        borderColor: "rgba(148, 163, 184, 0.6)",
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 6,
       },
       crosshair: {
         vertLine: {
-          color: "rgba(140, 164, 214, 0.45)",
+          color: "rgba(30, 41, 59, 0.35)",
           width: 1,
           labelVisible: true,
         },
         horzLine: {
-          color: "rgba(140, 164, 214, 0.45)",
+          color: "rgba(30, 41, 59, 0.35)",
           width: 1,
           labelVisible: true,
         },
@@ -208,11 +210,11 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, kline
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#2ea568",
-      downColor: "#c84f4f",
+      upColor: "#16a34a",
+      downColor: "#e11d48",
       borderVisible: false,
-      wickUpColor: "#55d69f",
-      wickDownColor: "#f08d8d",
+      wickUpColor: "#22c55e",
+      wickDownColor: "#f43f5e",
       priceLineVisible: true,
       lastValueVisible: true,
     });
@@ -312,6 +314,48 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, kline
   }, [priceScaleMode]);
 
   useEffect(() => {
+    if (!chartRef.current || !candleSeriesRef.current) {
+      return;
+    }
+
+    chartRef.current.applyOptions({
+      layout: {
+        background: { color: isDarkTheme ? "#0f172a" : "#ffffff" },
+        textColor: isDarkTheme ? "#94a3b8" : "#475569",
+      },
+      grid: {
+        vertLines: { color: isDarkTheme ? "rgba(71, 85, 105, 0.26)" : "rgba(148, 163, 184, 0.18)" },
+        horzLines: { color: isDarkTheme ? "rgba(71, 85, 105, 0.26)" : "rgba(148, 163, 184, 0.18)" },
+      },
+      rightPriceScale: {
+        borderColor: isDarkTheme ? "rgba(71, 85, 105, 0.65)" : "rgba(148, 163, 184, 0.6)",
+      },
+      timeScale: {
+        borderColor: isDarkTheme ? "rgba(71, 85, 105, 0.65)" : "rgba(148, 163, 184, 0.6)",
+      },
+      crosshair: {
+        vertLine: {
+          color: isDarkTheme ? "rgba(148, 163, 184, 0.35)" : "rgba(30, 41, 59, 0.35)",
+          width: 1,
+          labelVisible: true,
+        },
+        horzLine: {
+          color: isDarkTheme ? "rgba(148, 163, 184, 0.35)" : "rgba(30, 41, 59, 0.35)",
+          width: 1,
+          labelVisible: true,
+        },
+      },
+    });
+
+    candleSeriesRef.current.applyOptions({
+      upColor: isDarkTheme ? "#22c55e" : "#16a34a",
+      downColor: isDarkTheme ? "#f43f5e" : "#e11d48",
+      wickUpColor: isDarkTheme ? "#4ade80" : "#22c55e",
+      wickDownColor: isDarkTheme ? "#fb7185" : "#f43f5e",
+    });
+  }, [isDarkTheme]);
+
+  useEffect(() => {
     if (!chartRef.current) {
       return;
     }
@@ -340,7 +384,7 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, kline
     const volumes: HistogramData<Time>[] = candleData.map((item) => ({
       time: item.time,
       value: item.volume,
-      color: item.close >= item.open ? "rgba(46, 165, 104, 0.5)" : "rgba(200, 79, 79, 0.5)",
+      color: item.close >= item.open ? (isDarkTheme ? "rgba(34, 197, 94, 0.45)" : "rgba(22, 163, 74, 0.42)") : isDarkTheme ? "rgba(244, 63, 94, 0.45)" : "rgba(225, 29, 72, 0.42)",
     }));
 
     candleSeriesRef.current.setData(candles);
@@ -357,7 +401,7 @@ export default function MarketCandlestickChart({ chartKey, priceScaleMode, kline
         autoFittedKeyRef.current[activeKey] = true;
       }
     }
-  }, [candleData]);
+  }, [candleData, isDarkTheme]);
 
   return (
     <div className="tv-chart-wrapper">

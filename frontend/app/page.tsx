@@ -52,6 +52,7 @@ type OrderbookLevel = {
 };
 
 type SourceSymbol = { symbol: string; source: string };
+type UiTheme = "light" | "dark";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const TICKERS_API_URL = `${API_BASE_URL}/api/tickers`;
@@ -72,6 +73,106 @@ const ORDERBOOK_ROWS_LIMIT = 10;
 const ORDERBOOK_RATIO_LEVELS = 20;
 const TIMEFRAME_OPTIONS = ["1m", "5m", "15m", "1h"] as const;
 const PRICE_SCALE_OPTIONS = ["linear", "log"] as const;
+
+type IconProps = { className?: string };
+
+function PulseIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M3 12h4l2.4-4.5L13 17l2.2-5H21"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ActivityIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M4 12h3l2-4 4 8 2-4h5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LayersIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="m12 4 8 4.5-8 4.5-8-4.5L12 4Zm8 8-8 4.5L4 12m16 4-8 4.5L4 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CandlesIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 5v14M7 9h3v6H7M14 3v18M14 7h3v10h-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BookIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Zm0 0A2.5 2.5 0 0 1 6.5 8H20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SunIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function MoonIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M20 14.2A8.2 8.2 0 1 1 9.8 4a7 7 0 1 0 10.2 10.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function sortBySymbol<T extends SourceSymbol>(items: T[]): T[] {
   return [...items].sort((left, right) => {
@@ -290,6 +391,7 @@ function useRealtimeStream<T extends object>(
 }
 
 export default function HomePage() {
+  const [uiTheme, setUiTheme] = useState<UiTheme>("light");
   const [tickersByKey, setTickersByKey] = useState<Record<string, Ticker>>({});
   const [tradesByKey, setTradesByKey] = useState<Record<string, Trade>>({});
   const [klinesByKey, setKlinesByKey] = useState<Record<string, Kline>>({});
@@ -573,30 +675,123 @@ export default function HomePage() {
     return new Date(klineTimeMs(klineHistory[klineHistory.length - 1])).toLocaleTimeString();
   }, [klineHistory]);
 
+  const tickerState =
+    sortedTickers.length > 0 ? "ready" : streamStatus.tickers === "connecting" ? "loading" : streamStatus.tickers === "disconnected" ? "error" : "empty";
+  const tradeState =
+    sortedTrades.length > 0 ? "ready" : streamStatus.trades === "connecting" ? "loading" : streamStatus.trades === "disconnected" ? "error" : "empty";
+  const klineState =
+    timeframeKlines.length > 0 ? "ready" : streamStatus.klines === "connecting" ? "loading" : streamStatus.klines === "disconnected" ? "error" : "empty";
+
+  const connectedStreams = Object.values(streamStatus).filter((status) => status === "connected").length;
+  const connectionRatio = `${connectedStreams}/${Object.keys(streamStatus).length}`;
+  const tickerTape = useMemo(
+    () =>
+      sortedTickers
+        .slice(0, 10)
+        .map((ticker) => {
+          const price = Number.parseFloat(ticker.price);
+          const change = Number.parseFloat(ticker.change24h) * 100;
+          return `${ticker.symbol} ${Number.isFinite(price) ? price.toFixed(2) : "-"} (${Number.isFinite(change) ? change.toFixed(2) : "-"}%)`;
+        })
+        .join("  •  "),
+    [sortedTickers],
+  );
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem("ui-theme");
+    if (storedTheme === "light" || storedTheme === "dark") {
+      setUiTheme(storedTheme);
+      return;
+    }
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setUiTheme(prefersDark ? "dark" : "light");
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = uiTheme;
+    document.documentElement.style.colorScheme = uiTheme;
+    window.localStorage.setItem("ui-theme", uiTheme);
+  }, [uiTheme]);
+
   return (
-    <main className="container">
-      <header className="header">
-        <h1>Trading Dashboard (Tickers, Trades, Klines)</h1>
-        <div className="status-group">
-          <span className={`status status-${streamStatus.tickers}`}>tickers: {streamStatus.tickers}</span>
-          <span className={`status status-${streamStatus.trades}`}>trades: {streamStatus.trades}</span>
-          <span className={`status status-${streamStatus.klines}`}>klines: {streamStatus.klines}</span>
-          <span className={`status status-${streamStatus.orderbooks}`}>orderbooks: {streamStatus.orderbooks}</span>
+    <main className="dashboard-shell">
+      <header className="hero">
+        <div>
+          <p className="hero-kicker">Live Market Console</p>
+          <h1 className="hero-title">Realtime Trading Dashboard</h1>
+          <p className="hero-subtitle">
+            Multi-stream observability for tickers, trades, klines and orderbook depth. Designed for quick anomaly detection and pair inspection.
+          </p>
+        </div>
+        <div className="hero-stats">
+          <div className="theme-control">
+            <button
+              type="button"
+              className="theme-toggle theme-toggle-icon"
+              onClick={() => setUiTheme((prev) => (prev === "light" ? "dark" : "light"))}
+              aria-pressed={uiTheme === "dark"}
+              aria-label="Toggle dark or light mode"
+              title={uiTheme === "light" ? "Switch to dark theme" : "Switch to light theme"}
+            >
+              {uiTheme === "light" ? <MoonIcon className="theme-icon" /> : <SunIcon className="theme-icon" />}
+            </button>
+          </div>
+          <div className="hero-stat hero-stat-inline">
+            <span className="hero-stat-label">
+              <PulseIcon className="label-icon" />
+              Streams online
+            </span>
+            <span className="hero-stat-value">{connectionRatio}</span>
+          </div>
         </div>
       </header>
 
-      <section className="section">
-        <h2>Tickers</h2>
+      <section className="market-grid">
+        <article className="market-panel market-panel-tape">
+          <div className="market-panel-head">
+            <h2 className="title-with-icon">
+              <PulseIcon className="title-icon" />
+              Realtime Tape
+            </h2>
+          </div>
+          <div className="tape">
+            <p>{tickerTape || "Waiting for ticker stream..."}</p>
+            <p aria-hidden="true">{tickerTape || "Waiting for ticker stream..."}</p>
+          </div>
+        </article>
       </section>
-      <section className="cards">
-        {sortedTickers.length === 0 ? (
-          <p className="empty">Waiting for ticker stream...</p>
-        ) : (
-          sortedTickers.map((ticker) => {
+
+      <section className="section-block">
+        <div className="section-heading">
+          <h2 className="title-with-icon">
+            <LayersIcon className="title-icon" />
+            Ticker Snapshot
+          </h2>
+          <div className="status-group">
+            <span className={`status status-${streamStatus.tickers}`}>tickers: {streamStatus.tickers}</span>
+            <span className={`status status-${streamStatus.trades}`}>trades: {streamStatus.trades}</span>
+            <span className={`status status-${streamStatus.klines}`}>klines: {streamStatus.klines}</span>
+            <span className={`status status-${streamStatus.orderbooks}`}>orderbooks: {streamStatus.orderbooks}</span>
+          </div>
+        </div>
+        <div className="cards">
+          {tickerState === "loading" &&
+            Array.from({ length: 6 }).map((_, index) => (
+              <article className="card skeleton-card" key={`ticker-skeleton-${index}`}>
+                <span className="skeleton-line skeleton-title" />
+                <span className="skeleton-line skeleton-value" />
+                <span className="skeleton-line" />
+                <span className="skeleton-line skeleton-small" />
+              </article>
+            ))}
+          {tickerState === "error" && <p className="empty error">Ticker stream disconnected. Waiting for reconnect...</p>}
+          {tickerState === "empty" && <p className="empty">No ticker data yet.</p>}
+          {tickerState === "ready" &&
+          sortedTickers.map((ticker, index) => {
             const change = Number.parseFloat(ticker.change24h) * 100;
             const isPositive = change >= 0;
             return (
-              <article className="card" key={tickerKey(ticker)}>
+              <article className="card bento-card" key={tickerKey(ticker)} style={{ "--index": String(index) } as React.CSSProperties}>
                 <div className="card-top">
                   <h2>{ticker.symbol}</h2>
                   <span className={isPositive ? "badge badge-up" : "badge badge-down"}>{change.toFixed(2)}%</span>
@@ -609,23 +804,36 @@ export default function HomePage() {
                 </p>
               </article>
             );
-          })
-        )}
+          })}
+        </div>
       </section>
 
-      <section className="section">
-        <h2>Latest Trade Snapshots</h2>
-      </section>
-      <section className="cards">
-        {sortedTrades.length === 0 ? (
-          <p className="empty">Waiting for trade stream...</p>
-        ) : (
-          sortedTrades.map((trade) => {
+      <section className="section-block">
+        <div className="section-heading">
+          <h2 className="title-with-icon">
+            <ActivityIcon className="title-icon" />
+            Latest Trade Snapshots
+          </h2>
+        </div>
+        <div className="cards">
+          {tradeState === "loading" &&
+            Array.from({ length: 4 }).map((_, index) => (
+              <article className="card skeleton-card" key={`trade-skeleton-${index}`}>
+                <span className="skeleton-line skeleton-title" />
+                <span className="skeleton-line skeleton-value" />
+                <span className="skeleton-line" />
+                <span className="skeleton-line skeleton-small" />
+              </article>
+            ))}
+          {tradeState === "error" && <p className="empty error">Trade stream disconnected. Waiting for reconnect...</p>}
+          {tradeState === "empty" && <p className="empty">No trade data yet.</p>}
+          {tradeState === "ready" &&
+          sortedTrades.map((trade, index) => {
             const side = trade.side.toLowerCase();
             const isBuy = side === "buy";
             const isSell = side === "sell";
             return (
-              <article className="card" key={tradeKey(trade)}>
+              <article className="card bento-card" key={tradeKey(trade)} style={{ "--index": String(index) } as React.CSSProperties}>
                 <div className="card-top">
                   <h2>{trade.symbol}</h2>
                   <span className={isBuy ? "badge badge-up" : isSell ? "badge badge-down" : "badge"}>
@@ -640,19 +848,32 @@ export default function HomePage() {
                 </p>
               </article>
             );
-          })
-        )}
+          })}
+        </div>
       </section>
 
-      <section className="section">
-        <h2>Latest Klines</h2>
-      </section>
-      <section className="cards">
-        {timeframeKlines.length === 0 ? (
-          <p className="empty">Waiting for kline stream...</p>
-        ) : (
-          timeframeKlines.map((kline) => (
-            <article className="card" key={klineKey(kline)}>
+      <section className="section-block">
+        <div className="section-heading">
+          <h2 className="title-with-icon">
+            <CandlesIcon className="title-icon" />
+            Latest Klines
+          </h2>
+        </div>
+        <div className="cards">
+          {klineState === "loading" &&
+            Array.from({ length: 4 }).map((_, index) => (
+              <article className="card skeleton-card" key={`kline-skeleton-${index}`}>
+                <span className="skeleton-line skeleton-title" />
+                <span className="skeleton-line" />
+                <span className="skeleton-line" />
+                <span className="skeleton-line skeleton-small" />
+              </article>
+            ))}
+          {klineState === "error" && <p className="empty error">Kline stream disconnected. Waiting for reconnect...</p>}
+          {klineState === "empty" && <p className="empty">No kline data yet.</p>}
+          {klineState === "ready" &&
+          timeframeKlines.map((kline, index) => (
+            <article className="card bento-card" key={klineKey(kline)} style={{ "--index": String(index) } as React.CSSProperties}>
               <div className="card-top">
                 <h2>{kline.symbol}</h2>
                 <span className="badge">{kline.interval}</span>
@@ -666,14 +887,17 @@ export default function HomePage() {
                 {new Date(Number(kline.updated_at_ms)).toLocaleTimeString()}
               </p>
             </article>
-          ))
-        )}
+          ))}
+        </div>
       </section>
 
-      <section className="section">
-        <h2>Kline Candlestick Chart</h2>
-      </section>
-      <section className="chart-panel">
+      <section className="section-block chart-section">
+        <div className="section-heading">
+          <h2 className="title-with-icon">
+            <CandlesIcon className="title-icon" />
+            Kline Candlestick Chart
+          </h2>
+        </div>
         <div className="chart-controls">
           <label className="chart-label" htmlFor="timeframe-selector">
             Timeframe
@@ -735,6 +959,7 @@ export default function HomePage() {
               <MarketCandlestickChart
                 chartKey={`${selectedPair.source}:${selectedPair.symbol}:${selectedTimeframe}`}
                 priceScaleMode={selectedPriceScaleMode}
+                uiTheme={uiTheme}
                 klines={klineHistory}
                 loading={isKlineHistoryLoading}
                 error={klineHistoryError}
@@ -755,6 +980,7 @@ export default function HomePage() {
             <aside className="orderbook-panel">
               <div className="orderbook-header">
                 <h3>
+                  <BookIcon className="title-icon orderbook-title-icon" />
                   Order Book ({selectedPair.symbol} | {selectedPair.source.toUpperCase()})
                 </h3>
                 <span className={`status status-${streamStatus.orderbooks}`}>{streamStatus.orderbooks}</span>
@@ -833,7 +1059,7 @@ export default function HomePage() {
                   </div>
 
                   <div className="orderbook-balance">
-                    <p className="orderbook-balance-title">Топ-20 уровней: спрос / предложение</p>
+                    <p className="orderbook-balance-title">Top-20 depth: bids vs asks</p>
                     <div className="orderbook-balance-bar">
                       <span className="orderbook-balance-part orderbook-balance-part-bid" style={{ width: `${orderbookBidPct}%` }}>
                         B {orderbookBidPct.toFixed(0)}%
