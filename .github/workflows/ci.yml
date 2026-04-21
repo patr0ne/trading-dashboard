@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  frontend-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install frontend deps
+        run: |
+          cd frontend
+          npm install
+      - name: Lint frontend
+        run: |
+          cd frontend
+          npm run lint
+      - name: Test frontend
+        run: |
+          cd frontend
+          npm run test
+
+  scaffold-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Required files exist
+        run: |
+          test -f docker-compose.yml
+          test -f .env.example

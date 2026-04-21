@@ -1,0 +1,70 @@
+services:
+  ingester:
+    build: ./ingester
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - "${INGESTER_METRICS_PORT:-9108}:${INGESTER_METRICS_PORT:-9108}"
+    depends_on:
+      - redis
+
+  api:
+    build: ./api_server
+    env_file: .env
+    environment:
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3100},http://localhost:3000
+    restart: unless-stopped
+    ports:
+      - "${API_PUBLIC_PORT:-8000}:${API_PORT:-8000}"
+    depends_on:
+      - redis
+
+  frontend:
+    build: ./frontend
+    env_file: .env
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PUBLIC_PORT:-8000}
+      NEXT_PUBLIC_WS_TICKERS_URL: ws://localhost:${API_PUBLIC_PORT:-8000}/ws/tickers
+      NEXT_PUBLIC_WS_TRADES_URL: ws://localhost:${API_PUBLIC_PORT:-8000}/ws/trades
+      NEXT_PUBLIC_WS_KLINES_URL: ws://localhost:${API_PUBLIC_PORT:-8000}/ws/klines
+      NEXT_PUBLIC_WS_ORDERBOOKS_URL: ws://localhost:${API_PUBLIC_PORT:-8000}/ws/orderbooks
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3100}:3000"
+    depends_on:
+      - api
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PUBLIC_PORT:-6390}:6379"
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - ingester
+      - api
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
